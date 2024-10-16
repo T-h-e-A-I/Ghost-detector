@@ -4,11 +4,13 @@ const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const redis = require('redis');
+const authHuman = require('./middleware/authHuman');
+const authGhost = require('./middleware/authGhost');
+const upload = require('./middleware/multer');
 
 dotenv.config();
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
 const redisClient = redis.createClient();
 
 app.use(bodyParser.json());
@@ -16,46 +18,12 @@ app.use(bodyParser.json());
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 redisClient.connect();
 
-const HUMAN_ACCESS_SECRET = process.env.HUMAN_ACCESS_SECRET;
+
 const HUMAN_REFRESH_SECRET = process.env.HUMAN_REFRESH_SECRET;
-const GHOST_ACCESS_SECRET = process.env.GHOST_ACCESS_SECRET;
 const GHOST_REFRESH_SECRET = process.env.GHOST_REFRESH_SECRET;
 
-const authHuman = async (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token provided' });
 
-  try {
-    const decoded = jwt.verify(token, HUMAN_ACCESS_SECRET);
-    const sessionToken = await redisClient.get(`human_session:${decoded.id}`);
-    if (!sessionToken || sessionToken !== token) {
-      throw new Error('Invalid session');
-    }
-    req.user = decoded;
-    next();
-  } catch (error) {
-    console.error('Human authentication error:', error);
-    res.status(401).json({ error: 'Please authenticate' });
-  }
-};
 
-const authGhost = async (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token provided' });
-
-  try {
-    const decoded = jwt.verify(token, GHOST_ACCESS_SECRET);
-    const sessionToken = await redisClient.get(`ghost_session:${decoded.id}`);
-    if (!sessionToken || sessionToken !== token) {
-      throw new Error('Invalid session');
-    }
-    req.ghost = decoded;
-    next();
-  } catch (error) {
-    console.error('Ghost authentication error:', error);
-    res.status(401).json({ error: 'Please authenticate' });
-  }
-};
 
 app.post('/humans/login', async (req, res) => {
   try {
